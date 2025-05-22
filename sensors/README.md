@@ -1,7 +1,9 @@
 # Custom sensors
 
-- ![export_spot_price.yml](#export-sport-price)
+- [export_spot_price.yml](#export-spot-price)
 
-## Export Sport Price
+## Export Spot Price
 
 Sensor to configure, via the UI, the minimum value to allow exporting excedents from a photovoltaic system.
+
+Source: [HERE](export_spot_price.yml)
