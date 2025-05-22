@@ -1,0 +1,53 @@
+alias: Enable export when SPOT price is higher than provided
+description: ""
+
+triggers:
+  # Provided by the integration https://github.com/rnovacek/homeassistant_cz_energy_spot_prices
+  # This sensor changes its state every hour. When it changes, the automation is triggered.
+  - trigger: state
+    entity_id:
+      - sensor.current_spot_electricity_price 
+
+  # This sensor changes its state when the user changes the value in the UI. 
+  # When it changes, the automation is triggered.
+  - trigger: state
+    entity_id:
+      - input_number.export_spot_price # Custom sensor from ./sensors/export_spot_price.yml
+
+conditions:
+  # Check if the current SPOT price is higher than the provided value in the custom sensor
+  - condition: template
+    value_template: >-
+      {{ states('sensor.current_spot_electricity_price') | float | round(1) >= (states('input_number.export_spot_price') | float | round(1)) }}
+
+  # Check if the export limit is set to 0 (DISABLED)
+  - condition: template
+    value_template: >-
+      {{ states('number.solax_export_control_user_limit') | int == 0 }}
+
+  # When both conditions are met, the actions are executed.
+
+actions:
+  # Set the export limit to 8000W (ENABLED)
+  - action: number.set_value
+    metadata: {}
+    target:
+      entity_id: number.solax_export_control_user_limit
+    data:
+      value: "8000"
+
+  # Notify the user that the export is enabled via Home Assistant notification
+  - action: notify.mobile_app_phone_model
+    data:
+      title: Export to grid ENABLED
+      message: >-
+        The current SPOT price is equal or higher than {{states('input_number.export_spot_price') }}
+
+  # Notify the user that the export is enabled via Telegram
+  - action: notify.telegram
+    data:
+      title: "*Export to grid ENABLED*"
+      message: >-
+        The current SPOT price is equal or higher than {{states('input_number.export_spot_price') }}
+
+mode: single
