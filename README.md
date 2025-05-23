@@ -9,11 +9,25 @@ including automations and sensors tailored for smart home setups.
 - **Sensors**: Define custom sensors to monitor and react to various data sources, such as energy 
   prices, device states, and more.
 
-## Repository Structure
+## Index
 
-- [automations](./automations/README.md) — Custom automation scripts organized by category.
-- [sensors](./sensors/README.md) — Custom sensor definitions.
-- Each subfolder may contain a `README.md` with details about the scripts in that folder.
+### Automations
+
+Custom automation scripts organized by category.
+
+| Category     | Group          | Automation                                                                                                                                                |
+|--------------|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Photovoltaic | Export to grid | [Enable export when spot price is higher or equal than the provided](./automations/pv_export_grid/enable_export_when_spot_price_higher_than_provided.yml) |
+| Photovoltaic | Export to grid | [Disable export when spot price is lower than the provided](./automations/pv_export_grid/disable_export_if_spot_price_is_lower_than_provided.yml)         |
+
+### Sensors
+
+Custom sensor definitions organized by category.
+
+| Category     | Group          | Sensor                                                                                                  | Image                                       |
+|--------------|----------------|---------------------------------------------------------------------------------------------------------|---------------------------------------------|
+| Photovoltaic | Export to grid | [Sensor to configure, via UI, the minimum value to allow exporting excedents from a photovoltaic system.](./sensors/export_spot_price.yml) | ![](./sensors/images/export_spot_price.png) |
+
 
 ## Contributing
 
