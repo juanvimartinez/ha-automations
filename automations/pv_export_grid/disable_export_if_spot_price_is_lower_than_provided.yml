@@ -21,6 +21,7 @@ conditions:
       {{ states('sensor.current_spot_electricity_price') | float | round(1) < (states('input_number.export_spot_price') | float | round(1)) }}
 
   # Check if the export limit is not set to 0 (ENABLED)
+  # If it is already DISABLED (0), it does not need to be DISABLED again.
   - condition: template
     value_template: >-
       {{ states('number.solax_export_control_user_limit') | int != 0 }}
