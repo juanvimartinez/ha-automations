@@ -20,7 +20,7 @@ conditions:
     value_template: >-
       {{ states('sensor.current_spot_electricity_price') | float | round(1) < (states('input_number.export_spot_price') | float | round(1)) }}
 
-  # Check if the export limit is not set to 0 (ENABLED)
+  # Check if the export limit is different than 0 (ENABLED)
   # If it is already DISABLED (0), it does not need to be DISABLED again.
   - condition: template
     value_template: >-

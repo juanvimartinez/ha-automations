@@ -4,7 +4,7 @@
 
 ## Export Spot Price
 
-Sensor to configure, via the UI, the minimum value to allow exporting excedents from a photovoltaic system.
+Sensor to configure, via UI, the minimum value to allow exporting excedents from a photovoltaic system.
 
 ![](./images/export_spot_price.png)
 
