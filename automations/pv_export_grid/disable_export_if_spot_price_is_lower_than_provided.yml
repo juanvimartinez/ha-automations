@@ -37,14 +37,14 @@ actions:
     data:
       value: "0"
 
-  # Notify the user that the export is enabled via Home Assistant notification
+  # (OPTIONAL) Notify the user that the export is enabled via Home Assistant notification
   - action: notify.mobile_app_phone_model
     data:
       title: Export to grid DISABLED
       message: >-
         The current SPOT price is lower than {{ states('input_number.export_spot_price') }}
 
-  # Notify the user that the export is enabled via Telegram
+  # (OPTIONAL) Notify the user that the export is enabled via Telegram
   - action: notify.telegram
     data:
       title: "*Export to grid DISABLED*"
