@@ -31,7 +31,6 @@ conditions:
 actions:
   # Set the export limit to 8000W (ENABLED)
   - action: number.set_value
-    metadata: {}
     target:
       entity_id: number.solax_export_control_user_limit
     data:
@@ -42,13 +41,13 @@ actions:
     data:
       title: Export to grid ENABLED
       message: >-
-        The current SPOT price is equal or higher than {{states('input_number.export_spot_price') }}
+        The current SPOT price is equal or higher than {{states('input_number.export_spot_price') }} Kč/kWh
 
   # (OPTIONAL) Notify the user that the export is enabled via Telegram
   - action: notify.telegram
     data:
       title: "*Export to grid ENABLED*"
       message: >-
-        The current SPOT price is equal or higher than {{states('input_number.export_spot_price') }}
+        The current SPOT price is equal or higher than {{states('input_number.export_spot_price') }} Kč/kWh
 
 mode: single

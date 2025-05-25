@@ -11,6 +11,13 @@ including automations and sensors tailored for smart home setups.
 
 ## Index
 
+### Requirements
+
+- [homeassistant_cz_energy_spot_prices](https://github.com/rnovacek/homeassistant_cz_energy_spot_prices) 
+  (or other integration that will provide with sensors containing the spot prices for electricity)
+- [homeassistant-solax-modbus](https://github.com/wills106/homeassistant-solax-modbus) integration 
+  for Solax inverters.
+
 ### Automations
 
 Custom automation scripts organized by category.
