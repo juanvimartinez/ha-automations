@@ -1,0 +1,17 @@
+# Smart Battery Charging - Essential Configuration Only
+
+input_number:
+  smart_charging_max_power:
+    name: "Smart Charging Max Power"
+    min: 1000
+    max: 6000
+    step: 100
+    unit_of_measurement: "W"
+    icon: mdi:lightning-bolt
+    initial: 5000
+
+input_boolean:
+  smart_charging_enabled:
+    name: "Smart Charging Enabled"
+    icon: mdi:battery-charging-wireless
+    initial: true
