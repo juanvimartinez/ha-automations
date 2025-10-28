@@ -62,8 +62,8 @@ automation:
             {% set energyDeficit = batteryTotal - batteryCurrent %}
             {% set hoursNeeded = (energyDeficit / maxPower) %}
             
-            {# Determine optimal time block based on trigger #}
-            {% set triggerBlock = trigger.id %}
+            {# Determine optimal time block based on trigger or manual execution #}
+            {% set triggerBlock = trigger.id if trigger is defined and trigger.id is defined else 'manual' %}
             {% set optimalBlock = 'none' %}
             
             {% if hoursNeeded <= 0.1 %}
@@ -82,8 +82,8 @@ automation:
               {% set optimalBlock = '8_hours' %}
             {% endif %}
             
-            {# Only start if the triggered block matches the optimal block #}
-            {{ energyDeficit > 500 and optimalBlock != 'none' and triggerBlock == optimalBlock }}
+            {# Allow manual execution or match optimal block #}
+            {{ energyDeficit > 500 and optimalBlock != 'none' and (triggerBlock == 'manual' or triggerBlock == optimalBlock) }}
           {% endif %}
     actions:
       # Store which block initiated the charging
@@ -91,7 +91,7 @@ automation:
         target:
           entity_id: input_text.active_charging_block
         data:
-          value: "{{ trigger.id }}"
+          value: "{{ trigger.id if trigger is defined and trigger.id is defined else 'manual' }}"
       
       - action: select.select_option
         alias: "Enable Battery Control"
@@ -135,19 +135,21 @@ automation:
             {% if batteryTotal > 0 and batteryCurrent >= 0 and maxPower > 0 %}
               {% set energyDeficit = batteryTotal - batteryCurrent %}
               {% set hoursNeeded = (energyDeficit / maxPower) %}
+              {% set calculatedPower = 0 %}
               {% if hoursNeeded <= 1.0 %}
-                {{ [energyDeficit, maxPower] | min }}
+                {% set calculatedPower = [energyDeficit, maxPower] | min %}
               {% elif hoursNeeded <= 2.0 %}
-                {{ [(energyDeficit / 2) | int, maxPower] | min }}
+                {% set calculatedPower = [(energyDeficit / 2) | int, maxPower] | min %}
               {% elif hoursNeeded <= 3.0 %}
-                {{ [(energyDeficit / 3) | int, maxPower] | min }}
+                {% set calculatedPower = [(energyDeficit / 3) | int, maxPower] | min %}
               {% elif hoursNeeded <= 4.0 %}
-                {{ [(energyDeficit / 4) | int, maxPower] | min }}
+                {% set calculatedPower = [(energyDeficit / 4) | int, maxPower] | min %}
               {% elif hoursNeeded <= 6.0 %}
-                {{ [(energyDeficit / 6) | int, maxPower] | min }}
+                {% set calculatedPower = [(energyDeficit / 6) | int, maxPower] | min %}
               {% else %}
-                {{ maxPower }}
+                {% set calculatedPower = maxPower %}
               {% endif %}
+              {{ ((calculatedPower / 100) | round(0) * 100) | int }}
             {% else %}
               1000
             {% endif %}
@@ -163,26 +165,25 @@ automation:
         data:
           title: "*SMART GRID CHARGE*"
           message: >
-            Smart charging started using {{ trigger.id.replace('_', ' ') }} block!
+            {% set blockType = trigger.id if trigger is defined and trigger.id is defined else 'manual' %}
+            Smart charging started using {{ blockType.replace('_', ' ') }} block!
             
             Battery: {{ ((states('sensor.solax_remaining_battery_capacity') | int(0) / states('sensor.solax_bms_battery_capacity') | int(1)) * 100) | round(1) }}%
             Deficit: {{ (states('sensor.solax_bms_battery_capacity') | int(0) - states('sensor.solax_remaining_battery_capacity') | int(0)) | round(0) }} Wh
             Power: {{ states('number.solax_remotecontrol_active_power') | int(0) }} W
-            Price: {{ states('sensor.current_spot_electricity_price') }} CZK/kWh
+            Price: {{ states('sensor.current_spot_electricity_price') | round(2) }} CZK/kWh
     mode: single
 
   - id: smart_battery_charging_stop
-    alias: "Smart Battery Charging - Stop"
-    description: "Stop charging when battery reaches 100% or the ACTIVE cheap period ends"
+    alias: Smart Battery Charging - Stop
+    description: Stop charging when battery reaches 100% or the ACTIVE cheap period ends
     triggers:
       - trigger: template
-        value_template: >
+        value_template: |
           {{ (states('sensor.solax_battery_1_capacity_charge') | int(0)) >= 100 }}
-        id: "battery_full"
-      
-      # Only trigger stop when the ACTIVE block turns off
+        id: battery_full
       - trigger: template
-        value_template: >
+        value_template: |
           {% set activeBlock = states('input_text.active_charging_block') %}
           {% if activeBlock == '1_hour' %}
             {{ is_state('binary_sensor.spot_electricity_is_cheapest', 'off') }}
@@ -199,34 +200,29 @@ automation:
           {% else %}
             false
           {% endif %}
-        id: "active_period_ended"
-    
+        id: active_period_ended
     conditions:
       - condition: state
         entity_id: select.solax_remotecontrol_power_control
-        state: "Enabled Battery Control"
-    
+        state: Enabled Battery Control
     actions:
       - action: select.select_option
-        alias: "Disable Battery Control"
+        alias: Disable Battery Control
         data:
-          option: "Disabled"
+          option: Disabled
         target:
           entity_id: select.solax_remotecontrol_power_control
-      
-      # Clear the active charging block
       - action: input_text.set_value
         target:
           entity_id: input_text.active_charging_block
         data:
-          value: "none"
-      
+          value: none
       - action: notify.telegram
         data:
           title: "*SMART CHARGE COMPLETE*"
-          message: >
+          message: |
             Smart charging stopped!
-            
+
             Final battery: {{ ((states('sensor.solax_remaining_battery_capacity') | int(0) / states('sensor.solax_bms_battery_capacity') | int(1)) * 100) | round(1) }}%
-            Reason: {% if trigger.id == 'battery_full' %}Battery reached 100%{% else %}{{ states('input_text.active_charging_block').replace('_', ' ') }} period ended{% endif %}
+            Reason: {% if trigger is defined and trigger.id is defined %}{% if trigger.id == 'battery_full' %}Battery reached 100%{% else %}{{ states('input_text.active_charging_block').replace('_', ' ') }} period ended{% endif %}{% else %}Manual stop{% endif %}
     mode: single
