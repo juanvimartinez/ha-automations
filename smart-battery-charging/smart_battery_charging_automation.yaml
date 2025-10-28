@@ -10,26 +10,32 @@ automation:
         entity_id:
           - binary_sensor.spot_electricity_is_cheapest
         to: "on"
+        id: "1_hour"
       - trigger: state
         entity_id:
           - binary_sensor.spot_electricity_is_cheapest_2_hours_block
-        to: "on"  
+        to: "on"
+        id: "2_hours"
       - trigger: state
         entity_id:
           - binary_sensor.spot_electricity_is_cheapest_3_hours_block
         to: "on"
+        id: "3_hours"
       - trigger: state
         entity_id:
           - binary_sensor.spot_electricity_is_cheapest_4_hours_block
         to: "on"
+        id: "4_hours"
       - trigger: state
         entity_id:
           - binary_sensor.spot_electricity_is_cheapest_6_hours_block
         to: "on"
+        id: "6_hours"
       - trigger: state
         entity_id:
           - binary_sensor.spot_electricity_is_cheapest_8_hours_block
         to: "on"
+        id: "8_hours"
     conditions:
       - condition: state
         entity_id: input_boolean.smart_charging_enabled
@@ -42,164 +48,164 @@ automation:
       - condition: template
         alias: "Battery not fully charged"
         value_template: >
-          {% set batteryTotal = states('sensor.solax_bms_battery_capacity') | int %}
-          {% set batteryCurrent = states('sensor.solax_remaining_battery_capacity') | int %}
-          {% set batteryPercent = (batteryCurrent / batteryTotal * 100) %}
-          {{ batteryPercent < 100 }}
+          {{ (states('sensor.solax_battery_1_capacity_charge') | int(0)) < 100 }}
       - condition: template
         alias: "Sufficient energy deficit and in correct time window"
         value_template: >
-          {# Calculate energy deficit and required hours #}
-          {% set batteryTotal = states('sensor.solax_bms_battery_capacity') | int %}
-          {% set batteryCurrent = states('sensor.solax_remaining_battery_capacity') | int %}
-          {% set energyDeficit = batteryTotal - batteryCurrent %}
-          {% set maxPower = states('input_number.smart_charging_max_power') | int %}
-          {% set hoursNeeded = (energyDeficit / maxPower) %}
+          {% set batteryTotal = states('sensor.solax_bms_battery_capacity') | int(0) %}
+          {% set batteryCurrent = states('sensor.solax_remaining_battery_capacity') | int(0) %}
+          {% set maxPower = states('input_number.smart_charging_max_power') | int(1000) %}
           
-          {# Determine optimal time block #}
-          {% if hoursNeeded <= 0.1 %}
-            {% set optimalBlock = 'none' %}
-          {% elif hoursNeeded <= 1.0 %}
-            {% set optimalBlock = '1_hour' %}
-          {% elif hoursNeeded <= 2.0 %}
-            {% set optimalBlock = '2_hours' %}
-          {% elif hoursNeeded <= 3.0 %}
-            {% set optimalBlock = '3_hours' %}
-          {% elif hoursNeeded <= 4.0 %}
-            {% set optimalBlock = '4_hours' %}
-          {% elif hoursNeeded <= 6.0 %}
-            {% set optimalBlock = '6_hours' %}
+          {% if batteryTotal <= 0 or batteryCurrent < 0 or maxPower <= 0 %}
+            false
           {% else %}
-            {% set optimalBlock = '8_hours' %}
+            {% set energyDeficit = batteryTotal - batteryCurrent %}
+            {% set hoursNeeded = (energyDeficit / maxPower) %}
+            
+            {# Determine optimal time block based on trigger #}
+            {% set triggerBlock = trigger.id %}
+            {% set optimalBlock = 'none' %}
+            
+            {% if hoursNeeded <= 0.1 %}
+              {% set optimalBlock = 'none' %}
+            {% elif hoursNeeded <= 1.0 %}
+              {% set optimalBlock = '1_hour' %}
+            {% elif hoursNeeded <= 2.0 %}
+              {% set optimalBlock = '2_hours' %}
+            {% elif hoursNeeded <= 3.0 %}
+              {% set optimalBlock = '3_hours' %}
+            {% elif hoursNeeded <= 4.0 %}
+              {% set optimalBlock = '4_hours' %}
+            {% elif hoursNeeded <= 6.0 %}
+              {% set optimalBlock = '6_hours' %}
+            {% else %}
+              {% set optimalBlock = '8_hours' %}
+            {% endif %}
+            
+            {# Only start if the triggered block matches the optimal block #}
+            {{ energyDeficit > 500 and optimalBlock != 'none' and triggerBlock == optimalBlock }}
           {% endif %}
-          
-          {# Check if we're in the optimal time window #}
-          {% set inTimeWindow = false %}
-          {% if optimalBlock == '1_hour' and is_state('binary_sensor.spot_electricity_is_cheapest', 'on') %}
-            {% set inTimeWindow = true %}
-          {% elif optimalBlock == '2_hours' and is_state('binary_sensor.spot_electricity_is_cheapest_2_hours_block', 'on') %}
-            {% set inTimeWindow = true %}
-          {% elif optimalBlock == '3_hours' and is_state('binary_sensor.spot_electricity_is_cheapest_3_hours_block', 'on') %}
-            {% set inTimeWindow = true %}
-          {% elif optimalBlock == '4_hours' and is_state('binary_sensor.spot_electricity_is_cheapest_4_hours_block', 'on') %}
-            {% set inTimeWindow = true %}
-          {% elif optimalBlock == '6_hours' and is_state('binary_sensor.spot_electricity_is_cheapest_6_hours_block', 'on') %}
-            {% set inTimeWindow = true %}
-          {% elif optimalBlock == '8_hours' and is_state('binary_sensor.spot_electricity_is_cheapest_8_hours_block', 'on') %}
-            {% set inTimeWindow = true %}
-          {% endif %}
-          
-          {{ energyDeficit > 500 and optimalBlock != 'none' and inTimeWindow }}
     actions:
+      # Store which block initiated the charging
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.active_charging_block
+        data:
+          value: "{{ trigger.id }}"
+      
       - action: select.select_option
         alias: "Enable Battery Control"
         data:
           option: "Enabled Battery Control"
         target:
           entity_id: select.solax_remotecontrol_power_control
+      
       - action: number.set_value
         alias: "Set duration interval between repeats"
         data:
           value: 20
         target:
           entity_id: number.solax_remotecontrol_duration
+      
       - action: number.set_value
         alias: "Set autorepeat duration to charging time needed"
         data:
           value: >
-            {# Calculate required charging time in seconds #}
-            {% set batteryTotal = states('sensor.solax_bms_battery_capacity') | int %}
-            {% set batteryCurrent = states('sensor.solax_remaining_battery_capacity') | int %}
-            {% set energyDeficit = batteryTotal - batteryCurrent %}
-            {% set maxPower = states('input_number.smart_charging_max_power') | int %}
-            {% set hoursNeeded = (energyDeficit / maxPower) %}
-            {% set secondsNeeded = (hoursNeeded * 3600) | int %}
-            {# Ensure minimum 1 hour (3600s) and maximum 8 hours (28800s) #}
-            {{ [secondsNeeded, 28800] | min | max(3600) }}
+            {% set batteryTotal = states('sensor.solax_bms_battery_capacity') | int(0) %}
+            {% set batteryCurrent = states('sensor.solax_remaining_battery_capacity') | int(0) %}
+            {% set maxPower = states('input_number.smart_charging_max_power') | int(1000) %}
+            {% if batteryTotal > 0 and batteryCurrent >= 0 and maxPower > 0 %}
+              {% set energyDeficit = batteryTotal - batteryCurrent %}
+              {% set hoursNeeded = (energyDeficit / maxPower) %}
+              {% set secondsNeeded = (hoursNeeded * 3600) | int %}
+              {{ [[secondsNeeded, 28800] | min, 3600] | max }}
+            {% else %}
+              3600
+            {% endif %}
         target:
           entity_id: number.solax_remotecontrol_autorepeat_duration
+      
       - action: number.set_value
         alias: "Set optimal charging power"
         data:
           value: >
-            {# Calculate optimal charging power #}
-            {% set batteryTotal = states('sensor.solax_bms_battery_capacity') | int %}
-            {% set batteryCurrent = states('sensor.solax_remaining_battery_capacity') | int %}
-            {% set energyDeficit = batteryTotal - batteryCurrent %}
-            {% set maxPower = states('input_number.smart_charging_max_power') | int %}
-            {% set hoursNeeded = (energyDeficit / maxPower) %}
-            
-            {# Calculate recommended power based on time window #}
-            {% if hoursNeeded <= 1.0 %}
-              {{ [energyDeficit, maxPower] | min }}
-            {% elif hoursNeeded <= 2.0 %}
-              {{ [(energyDeficit / 2) | int, maxPower] | min }}
-            {% elif hoursNeeded <= 3.0 %}
-              {{ [(energyDeficit / 3) | int, maxPower] | min }}
-            {% elif hoursNeeded <= 4.0 %}
-              {{ [(energyDeficit / 4) | int, maxPower] | min }}
-            {% elif hoursNeeded <= 6.0 %}
-              {{ [(energyDeficit / 6) | int, maxPower] | min }}
+            {% set batteryTotal = states('sensor.solax_bms_battery_capacity') | int(0) %}
+            {% set batteryCurrent = states('sensor.solax_remaining_battery_capacity') | int(0) %}
+            {% set maxPower = states('input_number.smart_charging_max_power') | int(1000) %}
+            {% if batteryTotal > 0 and batteryCurrent >= 0 and maxPower > 0 %}
+              {% set energyDeficit = batteryTotal - batteryCurrent %}
+              {% set hoursNeeded = (energyDeficit / maxPower) %}
+              {% if hoursNeeded <= 1.0 %}
+                {{ [energyDeficit, maxPower] | min }}
+              {% elif hoursNeeded <= 2.0 %}
+                {{ [(energyDeficit / 2) | int, maxPower] | min }}
+              {% elif hoursNeeded <= 3.0 %}
+                {{ [(energyDeficit / 3) | int, maxPower] | min }}
+              {% elif hoursNeeded <= 4.0 %}
+                {{ [(energyDeficit / 4) | int, maxPower] | min }}
+              {% elif hoursNeeded <= 6.0 %}
+                {{ [(energyDeficit / 6) | int, maxPower] | min }}
+              {% else %}
+                {{ maxPower }}
+              {% endif %}
             {% else %}
-              {{ maxPower }}
+              1000
             {% endif %}
         target:
           entity_id: number.solax_remotecontrol_active_power
+      
       - action: button.press
         alias: "Start charging"
         target:
           entity_id: button.solax_remotecontrol_trigger
+      
       - action: notify.telegram
         data:
           title: "*SMART GRID CHARGE*"
           message: >
-            Smart charging started!
+            Smart charging started using {{ trigger.id.replace('_', ' ') }} block!
             
-            Battery: {{ ((states('sensor.solax_remaining_battery_capacity') | int / states('sensor.solax_bms_battery_capacity') | int) * 100) | round(1) }}%
-            Deficit: {{ (states('sensor.solax_bms_battery_capacity') | int - states('sensor.solax_remaining_battery_capacity') | int) | round(0) }} Wh
-            Power: {{ state_attr('number.solax_remotecontrol_active_power', 'value') | int }} W
-            Est. time: {{ ((states('sensor.solax_bms_battery_capacity') | int - states('sensor.solax_remaining_battery_capacity') | int) / (state_attr('number.solax_remotecontrol_active_power', 'value') | int)) | round(1) }}h
+            Battery: {{ ((states('sensor.solax_remaining_battery_capacity') | int(0) / states('sensor.solax_bms_battery_capacity') | int(1)) * 100) | round(1) }}%
+            Deficit: {{ (states('sensor.solax_bms_battery_capacity') | int(0) - states('sensor.solax_remaining_battery_capacity') | int(0)) | round(0) }} Wh
+            Power: {{ states('number.solax_remotecontrol_active_power') | int(0) }} W
             Price: {{ states('sensor.current_spot_electricity_price') }} CZK/kWh
     mode: single
 
   - id: smart_battery_charging_stop
     alias: "Smart Battery Charging - Stop"
-    description: "Stop charging when battery reaches 100% or cheap period ends"
+    description: "Stop charging when battery reaches 100% or the ACTIVE cheap period ends"
     triggers:
       - trigger: template
         value_template: >
-          {% set batteryTotal = states('sensor.solax_bms_battery_capacity') | int %}
-          {% set batteryCurrent = states('sensor.solax_remaining_battery_capacity') | int %}
-          {% set batteryPercent = (batteryCurrent / batteryTotal * 100) %}
-          {{ batteryPercent >= 100 }}
-      - trigger: state
-        entity_id:
-          - binary_sensor.spot_electricity_is_cheapest
-        to: "off"
-      - trigger: state
-        entity_id:
-          - binary_sensor.spot_electricity_is_cheapest_2_hours_block
-        to: "off"
-      - trigger: state
-        entity_id:
-          - binary_sensor.spot_electricity_is_cheapest_3_hours_block
-        to: "off"
-      - trigger: state
-        entity_id:
-          - binary_sensor.spot_electricity_is_cheapest_4_hours_block
-        to: "off"
-      - trigger: state
-        entity_id:
-          - binary_sensor.spot_electricity_is_cheapest_6_hours_block
-        to: "off"
-      - trigger: state
-        entity_id:
-          - binary_sensor.spot_electricity_is_cheapest_8_hours_block
-        to: "off"
+          {{ (states('sensor.solax_battery_1_capacity_charge') | int(0)) >= 100 }}
+        id: "battery_full"
+      
+      # Only trigger stop when the ACTIVE block turns off
+      - trigger: template
+        value_template: >
+          {% set activeBlock = states('input_text.active_charging_block') %}
+          {% if activeBlock == '1_hour' %}
+            {{ is_state('binary_sensor.spot_electricity_is_cheapest', 'off') }}
+          {% elif activeBlock == '2_hours' %}
+            {{ is_state('binary_sensor.spot_electricity_is_cheapest_2_hours_block', 'off') }}
+          {% elif activeBlock == '3_hours' %}
+            {{ is_state('binary_sensor.spot_electricity_is_cheapest_3_hours_block', 'off') }}
+          {% elif activeBlock == '4_hours' %}
+            {{ is_state('binary_sensor.spot_electricity_is_cheapest_4_hours_block', 'off') }}
+          {% elif activeBlock == '6_hours' %}
+            {{ is_state('binary_sensor.spot_electricity_is_cheapest_6_hours_block', 'off') }}
+          {% elif activeBlock == '8_hours' %}
+            {{ is_state('binary_sensor.spot_electricity_is_cheapest_8_hours_block', 'off') }}
+          {% else %}
+            false
+          {% endif %}
+        id: "active_period_ended"
+    
     conditions:
       - condition: state
         entity_id: select.solax_remotecontrol_power_control
         state: "Enabled Battery Control"
+    
     actions:
       - action: select.select_option
         alias: "Disable Battery Control"
@@ -207,16 +213,20 @@ automation:
           option: "Disabled"
         target:
           entity_id: select.solax_remotecontrol_power_control
+      
+      # Clear the active charging block
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.active_charging_block
+        data:
+          value: "none"
+      
       - action: notify.telegram
         data:
           title: "*SMART CHARGE COMPLETE*"
           message: >
             Smart charging stopped!
             
-            Final battery: {{ ((states('sensor.solax_remaining_battery_capacity') | int / states('sensor.solax_bms_battery_capacity') | int) * 100) | round(1) }}%
-            {% if ((states('sensor.solax_remaining_battery_capacity') | int / states('sensor.solax_bms_battery_capacity') | int) * 100) >= 100 %}
-            Target reached: 100%
-            {% else %}
-            Reason: Cheap period ended
-            {% endif %}
+            Final battery: {{ ((states('sensor.solax_remaining_battery_capacity') | int(0) / states('sensor.solax_bms_battery_capacity') | int(1)) * 100) | round(1) }}%
+            Reason: {% if trigger.id == 'battery_full' %}Battery reached 100%{% else %}{{ states('input_text.active_charging_block').replace('_', ' ') }} period ended{% endif %}
     mode: single
